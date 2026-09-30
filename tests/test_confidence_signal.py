@@ -344,6 +344,8 @@ def _commit(repo):
 
 def test_lacks_vantage_stamp_asks_for_the_statement_not_a_value():
     assert check_confidence_signal.lacks_vantage_stamp(base_record(confidence_baseline=0.9))
+    assert check_confidence_signal.lacks_vantage_stamp(
+        base_record(confidence_baseline=0.9, evidence_vantage=""))
     assert not check_confidence_signal.lacks_vantage_stamp(
         base_record(confidence_baseline=0.9, evidence_vantage="artifact"))
     assert not check_confidence_signal.lacks_vantage_stamp(base_record(confidence_baseline=0.5))
@@ -375,6 +377,34 @@ def test_ratchet_passes_when_the_change_states_the_vantage(repo):
 def test_ratchet_leaves_older_records_to_the_soft_warning(repo):
     (repo / "README.md").write_text("unrelated", encoding="utf-8")
     _commit(repo)
+    assert check_confidence_signal.ratchet("base") == 0
+
+
+def test_ratchet_ignores_base_changes_after_the_branch_point(repo):
+    _git(repo, "switch", "-q", "-c", "feature")
+    (repo / "README.md").write_text("feature branch", encoding="utf-8")
+    _commit(repo)
+
+    _git(repo, "switch", "-q", "base")
+    record_path = repo / "records" / "AVE-2026-00001.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    _commit(repo)
+
+    _git(repo, "switch", "-q", "feature")
+    two_dot = subprocess.run(
+        ["git", "diff", "--name-only", "base..HEAD", "--", "records"],
+        capture_output=True, text=True, check=True,
+    )
+    assert two_dot.stdout.strip() == "records/AVE-2026-00001.json"
+    assert check_confidence_signal.changed_record_paths("base") == []
+    assert check_confidence_signal.ratchet("base") == 0
+
+
+def test_ratchet_ignores_deleted_records(repo):
+    (repo / "records" / "AVE-2026-00001.json").unlink()
+    _commit(repo)
+    assert check_confidence_signal.changed_record_paths("base") == []
     assert check_confidence_signal.ratchet("base") == 0
 
 
