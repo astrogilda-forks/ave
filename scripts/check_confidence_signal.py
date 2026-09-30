@@ -94,8 +94,8 @@
 #       only fall. Stating "artifact" is always true and satisfies the ratchet:
 #       what it refuses is silence beside a high number, not a weak vantage,
 #       which the soft warning above still names. The records that predate the
-#       ratchet are stamped on their own timeline (the follow-up to #286), not
-#       by whichever change happens to touch them next.
+#       ratchet keep the soft warning until changed. Even a format-only edit
+#       must stamp one. The follow-up to #286 can stamp the backlog first.
 import argparse
 import json
 import subprocess
