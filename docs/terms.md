@@ -246,6 +246,10 @@ Name of the researcher or team who authored this record. REQUIRED once a record 
 
 URL for the researcher or team. Optional.
 
+### `revisions`
+
+History of changes to values automated consumers read, oldest first. A consumer that gated on a value can reconcile a record read at two different times without diffing the repository. validate_records.py checks each field's entries chain (one entry's to is the next one's from) and that the latest to equals the value the record carries now, derived where the field is derived. Optional; absent means no change to such a value has been recorded.
+
 ### `schema_version`
 
 AVE schema version this record was authored against, e.g. 1.1.0.

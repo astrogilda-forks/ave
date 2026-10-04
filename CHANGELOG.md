@@ -84,6 +84,15 @@ Format: [Semantic Versioning](https://semver.org). Schema versions and record se
   new record.
 
 ### Added
+- Optional `revisions` on records: a history of changes to values
+  automated consumers read, each entry a `date`, `field`, `from`, `to`,
+  `reason` and a closed `reason_code` (`declaration_added`,
+  `declaration_corrected`, `derivation_changed`). Additive and optional,
+  no version bump. `validate_records.py` fails a history that names a
+  field the schema does not define, is out of date order, records a
+  non-change, breaks its own chain, or ends at a value other than the one
+  the record carries now (the derived value, for `verification_basis`).
+  Proposed on issue #219.
 - AVE-2026-00087: Agentjacking — a monitoring/diagnostic integration's
   own publicly-writable ingest endpoint lets an attacker plant a
   crafted event formatted to visually mimic the integration's

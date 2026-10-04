@@ -4,7 +4,8 @@
 #       plus AIVSS score arithmetic and vendor-neutral language, added after a
 #       hand-drafted batch of records caught real instances of exactly these
 #       problems that nothing here checked, plus a declared verification_basis
-#       that the record's own evidence axes contradict
+#       that the record's own evidence axes contradict, plus a revisions
+#       history that does not chain to the value the record carries now
 # Why:  a malformed or drifted record breaks every downstream scanner that loads it,
 #       and a free-text value in `mitigation` would let vendor-specific config
 #       leak back into a standard that is supposed to stay vendor-neutral.
@@ -38,6 +39,7 @@ import jsonschema
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.write_verification_basis import check_record as check_verification_basis  # noqa: E402
+from scripts.write_verification_basis import derive as derive_verification_basis  # noqa: E402
 
 RECORDS_DIR = Path("records")
 SCHEMA_PATH = Path("schema/ave-record-1.1.0.schema.json")
@@ -168,6 +170,69 @@ DISCLOSURE_SIGNAL_WORDS = [
 ]
 
 
+# Fields whose value a consumer reads is computed rather than stored. A record
+# usually does not carry verification_basis at all, so the value its latest
+# revision must match is the derivation, not record.get().
+DERIVED_FIELDS = {"verification_basis": derive_verification_basis}
+
+
+def current_value(record: dict, field: str):
+    """The value a consumer reads for this field today."""
+    if field in DERIVED_FIELDS:
+        return DERIVED_FIELDS[field](record)
+    return record.get(field)
+
+
+def revision_entries(record: dict) -> list[dict]:
+    """The well-formed revisions entries. A malformed shape is the schema's
+    finding, reported there; this returns nothing for it rather than raising."""
+    revisions = record.get("revisions")
+    if not isinstance(revisions, list):
+        return []
+    return [e for e in revisions if isinstance(e, dict) and isinstance(e.get("field"), str)]
+
+
+def check_revision_order(entries: list[dict]) -> list[str]:
+    dates = [e.get("date") for e in entries]
+    if all(isinstance(d, str) for d in dates) and dates != sorted(dates):
+        return ["revisions: entries are not oldest first"]
+    return []
+
+
+def check_revision_chain(record: dict, field: str, entries: list[dict]) -> list[str]:
+    """One field's entries: each changes something, each starts where the last
+    ended, and the latest ends at the value the record carries now."""
+    errors = [f"revisions: an entry for '{field}' records no change ({e.get('from')!r} to itself)"
+              for e in entries if e.get("from") == e.get("to")]
+    for earlier, later in zip(entries, entries[1:]):
+        if earlier.get("to") != later.get("from"):
+            errors.append(f"revisions: '{field}' went to {earlier.get('to')!r} and the next "
+                          f"entry starts from {later.get('from')!r}")
+    now = current_value(record, field)
+    if entries[-1].get("to") != now:
+        errors.append(f"revisions: the latest entry for '{field}' ends at "
+                      f"{entries[-1].get('to')!r} but the record reads {now!r} today")
+    return errors
+
+
+def check_revisions(record: dict, known_fields: set[str]) -> list[str]:
+    """A revision history a consumer can trust: every entry names a real field,
+    and each field's entries chain to the value the record carries now. Without
+    the last check an entry could say anything, and the field would be one more
+    self-report."""
+    entries = revision_entries(record)
+    errors = check_revision_order(entries)
+    by_field: dict[str, list[dict]] = {}
+    for entry in entries:
+        by_field.setdefault(entry["field"], []).append(entry)
+    for field, field_entries in by_field.items():
+        if field not in known_fields or field == "revisions":
+            errors.append(f"revisions: '{field}' is not a record field")
+            continue
+        errors += check_revision_chain(record, field, field_entries)
+    return errors
+
+
 def check_researcher_matches_disclosure(record: dict) -> list[str]:
     """Soft warning only: flags records where `researcher` is an AVE
     maintainer name while `references` contains something that reads
@@ -202,6 +267,7 @@ def main() -> int:
     schema = json.loads(SCHEMA_PATH.read_text())
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = build_validator(schema)
+    known_fields = set(schema["properties"])
 
     paths = sorted(RECORDS_DIR.glob("AVE-*.json"))
     if not paths:
@@ -222,6 +288,7 @@ def main() -> int:
             + check_aivss_arithmetic(record)
             + check_no_vendor_boilerplate(raw_text)
             + check_verification_basis(record)
+            + check_revisions(record, known_fields)
         )
         for e in errors:
             print(f"{rid}: {e}")
