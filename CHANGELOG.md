@@ -92,7 +92,11 @@ Format: [Semantic Versioning](https://semver.org). Schema versions and record se
   field the schema does not define, is out of date order, records a
   non-change, breaks its own chain, or ends at a value other than the one
   the record carries now (the derived value, for `verification_basis`).
-  Proposed on issue #219.
+  AVE-2026-00074 carries the first entry: its derived basis moved from
+  `artifact_reconstructed` to `substrate_reconstructed` when #299 stamped
+  `evidence_vantage`, and `last_updated` had not moved with it. The other
+  eight records #299 stamped kept the same derived basis, so they carry
+  no entry. Proposed on issue #219.
 - AVE-2026-00087: Agentjacking — a monitoring/diagnostic integration's
   own publicly-writable ingest endpoint lets an attacker plant a
   crafted event formatted to visually mimic the integration's
