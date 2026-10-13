@@ -117,9 +117,10 @@ Format: [Semantic Versioning](https://semver.org). Schema versions and record se
   refuses entries out of date order and a `last_updated` older than the
   latest revision. First use: AVE-2026-00074, whose `evidence_vantage`
   stamp in #299 moved its derived `verification_basis` from
-  `artifact_reconstructed` to `substrate_reconstructed`; its `last_updated`
-  now names that change. The other eight records stamped in #299 get no
-  entry, because their derived basis did not change.
+  `artifact_reconstructed` to `substrate_reconstructed`. Its `last_updated`
+  moves to the date of this edit, since #299 left it at 2026-08-07. The
+  other eight records stamped in #299 get no entry, because their derived
+  basis did not change.
 - AVE-2026-00087: Agentjacking — a monitoring/diagnostic integration's
   own publicly-writable ingest endpoint lets an attacker plant a
   crafted event formatted to visually mimic the integration's
