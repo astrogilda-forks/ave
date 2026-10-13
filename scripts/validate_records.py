@@ -168,6 +168,34 @@ DISCLOSURE_SIGNAL_WORDS = [
 ]
 
 
+def check_revisions_append_only(record: dict) -> list[str]:
+    """The schema checks each revisions entry's shape; it cannot check the
+    array's order or its agreement with last_updated. Entries are appended in
+    date order, so a date earlier than the one before it is a rewritten
+    history, and a revision dated after last_updated means last_updated no
+    longer names the record's latest change, which is the one signal a
+    consumer had before this field existed (#317).
+    """
+    revisions = record.get("revisions")
+    if not isinstance(revisions, list):
+        return []
+    errors = []
+    dates = [entry.get("date", "") for entry in revisions if isinstance(entry, dict)]
+    for i in range(1, len(dates)):
+        if dates[i] < dates[i - 1]:
+            errors.append(
+                f"revisions[{i}].date {dates[i]} is earlier than revisions[{i - 1}].date "
+                f"{dates[i - 1]}: revisions are appended in date order"
+            )
+    last_updated = str(record.get("last_updated") or "")[:10]
+    if dates and last_updated and max(dates) > last_updated:
+        errors.append(
+            f"last_updated {last_updated} predates the latest revision {max(dates)}: "
+            f"last_updated must name the record's latest change"
+        )
+    return errors
+
+
 def check_researcher_matches_disclosure(record: dict) -> list[str]:
     """Soft warning only: flags records where `researcher` is an AVE
     maintainer name while `references` contains something that reads
@@ -222,6 +250,7 @@ def main() -> int:
             + check_aivss_arithmetic(record)
             + check_no_vendor_boilerplate(raw_text)
             + check_verification_basis(record)
+            + check_revisions_append_only(record)
         )
         for e in errors:
             print(f"{rid}: {e}")
