@@ -168,13 +168,16 @@ DISCLOSURE_SIGNAL_WORDS = [
 ]
 
 
-def check_revisions_append_only(record: dict) -> list[str]:
+def check_revision_order(record: dict) -> list[str]:
     """The schema checks each revisions entry's shape; it cannot check the
     array's order or its agreement with last_updated. Entries are appended in
     date order, so a date earlier than the one before it is a rewritten
     history, and a revision dated after last_updated means last_updated no
     longer names the record's latest change, which is the one signal a
-    consumer had before this field existed (#317).
+    consumer had before this field existed (#317). This checks one record
+    only: an earlier entry deleted or rewritten in place is visible only
+    against the previous version of the record, so the schema's append-only
+    rule is not fully enforced here.
     """
     revisions = record.get("revisions")
     if not isinstance(revisions, list):
@@ -278,7 +281,7 @@ def record_errors(record: dict, raw_text: str, validator) -> list[str]:
         + check_aivss_arithmetic(record)
         + check_no_vendor_boilerplate(raw_text)
         + check_verification_basis(record)
-        + check_revisions_append_only(record)
+        + check_revision_order(record)
         + check_revision_values(record, validator.schema.get("properties", {}))
     )
 

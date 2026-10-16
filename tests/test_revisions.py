@@ -42,7 +42,7 @@ def _record(**entry_changes):
 
 def test_an_added_field_entry_with_null_from_is_valid():
     assert validate_records.check_schema(_record(), _validator()) == []
-    assert validate_records.check_revisions_append_only(_record()) == []
+    assert validate_records.check_revision_order(_record()) == []
 
 
 def test_an_unregistered_reason_code_is_refused():
@@ -69,21 +69,21 @@ def test_revisions_out_of_date_order_are_refused():
     record = _record()
     record["revisions"].insert(0, dict(record["revisions"][0], date="2026-09-29"))
     record["last_updated"] = "2026-09-29T00:00:00Z"
-    errors = validate_records.check_revisions_append_only(record)
+    errors = validate_records.check_revision_order(record)
     assert any("date order" in error for error in errors)
 
 
 def test_a_revision_after_last_updated_is_refused():
     record = _record()
     record["last_updated"] = "2026-08-07T00:00:00Z"
-    errors = validate_records.check_revisions_append_only(record)
+    errors = validate_records.check_revision_order(record)
     assert any("predates the latest revision" in error for error in errors)
 
 
 def test_a_record_without_revisions_makes_no_claim():
     record = copy.deepcopy(BASE)
     del record["revisions"]
-    assert validate_records.check_revisions_append_only(record) == []
+    assert validate_records.check_revision_order(record) == []
 
 
 def test_two_revisions_on_the_same_date_are_accepted():
@@ -97,7 +97,7 @@ def test_two_revisions_on_the_same_date_are_accepted():
             "reason_code": "declaration_added",
         }
     )
-    assert validate_records.check_revisions_append_only(record) == []
+    assert validate_records.check_revision_order(record) == []
 
 
 def test_the_validator_pipeline_refuses_revisions_out_of_date_order():
