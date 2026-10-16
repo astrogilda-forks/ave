@@ -226,6 +226,25 @@ def check_researcher_matches_disclosure(record: dict) -> list[str]:
     return []
 
 
+def record_errors(record: dict, raw_text: str, validator) -> list[str]:
+    """Every hard error for one record, in the order main() reports them.
+
+    main() and the tests both call this, so a check dropped from the
+    pipeline fails a test instead of passing silently.
+    """
+    return (
+        check_schema(record, validator)
+        + check_no_old_field_names(record)
+        + check_no_nested_owasp_mcp_mapping(record)
+        + check_behavioral_vector_or_example_patterns(record)
+        + check_mitigation_enums_only(record)
+        + check_aivss_arithmetic(record)
+        + check_no_vendor_boilerplate(raw_text)
+        + check_verification_basis(record)
+        + check_revisions_append_only(record)
+    )
+
+
 def main() -> int:
     schema = json.loads(SCHEMA_PATH.read_text())
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -241,17 +260,7 @@ def main() -> int:
         raw_text = path.read_text()
         record = json.loads(raw_text)
         rid = record.get("ave_id", path.name)
-        errors = (
-            check_schema(record, validator)
-            + check_no_old_field_names(record)
-            + check_no_nested_owasp_mcp_mapping(record)
-            + check_behavioral_vector_or_example_patterns(record)
-            + check_mitigation_enums_only(record)
-            + check_aivss_arithmetic(record)
-            + check_no_vendor_boilerplate(raw_text)
-            + check_verification_basis(record)
-            + check_revisions_append_only(record)
-        )
+        errors = record_errors(record, raw_text, validator)
         for e in errors:
             print(f"{rid}: {e}")
         total_errors += len(errors)

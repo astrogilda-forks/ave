@@ -21,6 +21,7 @@ BASE = {
     "behavioral_fingerprint": "test",
     "references": ["https://example.com"],
     "last_updated": "2026-09-28T23:51:58Z",
+    "evidence_vantage": "substrate",
     "revisions": [
         {
             "date": "2026-09-28",
@@ -83,3 +84,25 @@ def test_a_record_without_revisions_makes_no_claim():
     record = copy.deepcopy(BASE)
     del record["revisions"]
     assert validate_records.check_revisions_append_only(record) == []
+
+
+def test_two_revisions_on_the_same_date_are_accepted():
+    record = _record(to="artifact")
+    record["revisions"].append(
+        {
+            "date": "2026-09-28",
+            "field": "evidence_vantage",
+            "from": "artifact",
+            "to": "substrate",
+            "reason_code": "declaration_added",
+        }
+    )
+    assert validate_records.check_revisions_append_only(record) == []
+
+
+def test_the_validator_pipeline_refuses_revisions_out_of_date_order():
+    record = _record()
+    record["revisions"].insert(0, dict(record["revisions"][0], date="2026-09-29"))
+    record["last_updated"] = "2026-09-29T00:00:00Z"
+    errors = validate_records.record_errors(record, json.dumps(record), _validator())
+    assert any("date order" in error for error in errors)
