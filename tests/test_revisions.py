@@ -106,3 +106,38 @@ def test_the_validator_pipeline_refuses_revisions_out_of_date_order():
     record["last_updated"] = "2026-09-29T00:00:00Z"
     errors = validate_records.record_errors(record, json.dumps(record), _validator())
     assert any("date order" in error for error in errors)
+
+
+KNOWN_FIELDS = json.loads(validate_records.SCHEMA_PATH.read_text(encoding="utf-8"))["properties"]
+
+
+def test_a_consistent_history_passes_the_value_check():
+    assert validate_records.check_revision_values(_record(), KNOWN_FIELDS) == []
+
+
+def test_a_field_the_schema_does_not_define_is_refused():
+    errors = validate_records.check_revision_values(_record(field="evidence_vantge"), KNOWN_FIELDS)
+    assert any("not a property the schema defines" in error for error in errors)
+
+
+def test_a_revision_with_the_same_from_and_to_is_refused():
+    errors = validate_records.check_revision_values(_record(**{"from": "substrate"}), KNOWN_FIELDS)
+    assert any("records no change" in error for error in errors)
+
+
+def test_a_duplicated_revision_breaks_the_chain():
+    record = _record()
+    record["revisions"].append(copy.deepcopy(record["revisions"][0]))
+    errors = validate_records.check_revision_values(record, KNOWN_FIELDS)
+    assert any("is not the previous to" in error for error in errors)
+
+
+def test_a_latest_to_that_contradicts_the_record_is_refused():
+    errors = validate_records.check_revision_values(_record(to="artifact"), KNOWN_FIELDS)
+    assert any("but the record holds 'substrate'" in error for error in errors)
+
+
+def test_the_validator_pipeline_refuses_a_contradicting_latest_to():
+    record = _record(to="artifact")
+    errors = validate_records.record_errors(record, json.dumps(record), _validator())
+    assert any("but the record holds" in error for error in errors)

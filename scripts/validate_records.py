@@ -196,6 +196,43 @@ def check_revisions_append_only(record: dict) -> list[str]:
     return errors
 
 
+def check_revision_values(record: dict, known_fields) -> list[str]:
+    """Each revision must name a field the schema defines and record a real
+    change, and the revisions of one field must chain: every entry's from is
+    the previous entry's to, and the latest to is the value the record holds
+    now. That refuses a misspelt field, a no-op entry, a duplicated entry and
+    a history that contradicts the record. A deleted or rewritten earlier
+    entry can only be seen against the previous version of the record.
+    """
+    revisions = record.get("revisions")
+    if not isinstance(revisions, list):
+        return []
+    errors = []
+    latest = {}
+    for i, entry in enumerate(revisions):
+        if not isinstance(entry, dict):
+            continue
+        field = entry.get("field")
+        if field not in known_fields:
+            errors.append(f"revisions[{i}].field {field!r} is not a property the schema defines")
+            continue
+        if entry.get("from") == entry.get("to"):
+            errors.append(f"revisions[{i}] has the same from and to: it records no change")
+        if field in latest and entry.get("from") != latest[field]:
+            errors.append(
+                f"revisions[{i}].from {entry.get('from')!r} is not the previous to "
+                f"{latest[field]!r} for {field}"
+            )
+        latest[field] = entry.get("to")
+    for field, value in latest.items():
+        if record.get(field) != value:
+            errors.append(
+                f"the latest revision of {field} sets it to {value!r}, "
+                f"but the record holds {record.get(field)!r}"
+            )
+    return errors
+
+
 def check_researcher_matches_disclosure(record: dict) -> list[str]:
     """Soft warning only: flags records where `researcher` is an AVE
     maintainer name while `references` contains something that reads
@@ -242,6 +279,7 @@ def record_errors(record: dict, raw_text: str, validator) -> list[str]:
         + check_no_vendor_boilerplate(raw_text)
         + check_verification_basis(record)
         + check_revisions_append_only(record)
+        + check_revision_values(record, validator.schema.get("properties", {}))
     )
 
 
